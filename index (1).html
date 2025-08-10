@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Adaptive Math Quiz — JSON Data AI</title>
+<meta name="description" content="Fetch math questions from a natural-language generated API; auto-grade, review explanations, and export scores.">
+<style>
+  :root{
+    --bg:#0f1220;--panel:#151a2f;--muted:#9fb2c9;--text:#e9ecf1;--accent:#6fb0ff;--ok:#3ad29f;--bad:#ff6b7a;--ring:#2a64ff55;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0f1220 40%,#0f1220);color:var(--text);
+       font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  header{padding:18px 14px;text-align:center}
+  h1{margin:0 0 6px;font-size:clamp(22px,3vw,28px)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 14px 40px}
+  .panel{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px}
+  .toolbar{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center}
+  .toolbar input,.toolbar select,.toolbar button{
+    background:var(--panel);border:1px solid var(--ring);color:var(--text);padding:10px 12px;border-radius:10px;outline:none
+  }
+  .toolbar button{cursor:pointer}
+  .status{margin-top:8px;color:var(--muted);font-size:13px}
+  .quiz{margin-top:16px;display:grid;gap:12px}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.10);
+        border-radius:12px;padding:14px}
+  .qhead{display:flex;gap:8px;justify-content:space-between;align-items:center}
+  .badge{font-size:12px;color:#d7e7ff;background:#1b2447;border:1px solid #32406f;border-radius:999px;padding:4px 8px}
+  .qtext{margin:8px 0 10px;line-height:1.5}
+  .choices{display:grid;gap:8px}
+  .choice{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid #2a355e;border-radius:10px;background:#141935;cursor:pointer}
+  .choice input{accent-color:#6fb0ff}
+  .fitb{width:100%;padding:10px;border-radius:10px;border:1px solid #2a355e;background:#111634;color:var(--text)}
+  .tf{display:flex;gap:10px}
+  .result{margin-top:4px;font-size:13px}
+  .ok{color:var(--ok)} .bad{color:var(--bad)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .small{font-size:12px;color:var(--muted)}
+  footer{color:var(--muted);text-align:center;font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Adaptive Math Quiz</h1>
+  <div class="small">Pull questions from a natural-language generated API (JSON Data AI). Auto-grade, review explanations, export CSV.</div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <div class="toolbar">
+      <input id="name" placeholder="Your name (for CSV)"/>
+      <select id="count"><option>10</option><option>15</option><option selected>20</option><option>25</option></select>
+      <select id="difficulty"><option value="All" selected>All difficulties</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
+      <button id="start">Start / Restart</button>
+    </div>
+    <div class="status" id="status">Ready. Choose options and Start.</div>
+    <div class="status" id="timer" aria-live="polite"></div>
+  </section>
+
+  <section id="quiz" class="quiz" aria-live="polite"></section>
+
+  <section class="actions" id="actions" style="display:none">
+    <button id="submit">Submit</button>
+    <button id="review">Review Explanations</button>
+    <button id="export">Export CSV</button>
+    <div class="small" id="score"></div>
+  </section>
+
+  <footer>Data source: JSON Data AI · Fallback dataset included for reliability</footer>
+</main>
+
+<script>
+/** CONFIG — 你的 JSON Data AI 链接；也可用 ?endpoint= 覆盖 **/
+const ENDPOINT_URL = 'https://www.jsondataai.com/api/4prqZsQ';
+const OVERRIDE = new URLSearchParams(location.search).get('endpoint');
+const EFFECTIVE_ENDPOINT = OVERRIDE || ENDPOINT_URL;
+
+/** 本地回退题库（示例 8 题，用于离线或 API 失败） **/
+const FALLBACK = {
+  data: [
+    {id:"f1",type:"mcq",question:"Solve for x: $2x+3=11$",choices:["3","4","5","6"],answer:"4",explanation:"2x=8 so x=4.",difficulty:"Easy",tags:["algebra"]},
+    {id:"f2",type:"mcq",question:"Factorise: $x^2-9$",choices:["(x-9)(x+1)","(x-3)(x-3)","(x-3)(x+3)","x(x-9)"],answer:"(x-3)(x+3)",explanation:"Difference of squares.",difficulty:"Easy",tags:["factorisation"]},
+    {id:"f3",type:"fitb",question:"Evaluate $f(2)$ if $f(x)=3x^2-2x+1$.",answer:"9",explanation:"3*4 -4 +1 = 9.",difficulty:"Medium",tags:["functions"]},
+    {id:"f4",type:"truefalse",question:"$\\sqrt{a^2}=a$ for all real a.",answer:"False",explanation:"It equals |a|, not a.",difficulty:"Medium",tags:["indices"]},
+    {id:"f5",type:"mcq",question:"Solve $x^2-5x+6=0$.",choices:["x=2 or 3","x=−2 or −3","x=1 or 6","No real roots"],answer:"x=2 or 3",explanation:"(x-2)(x-3)=0",difficulty:"Easy",tags:["quadratic"]},
+    {id:"f6",type:"fitb",question:"Simplify: $\\frac{x^3}{x}$ for $x\\ne0$.",answer:"x^2",explanation:"Subtract exponents: 3-1 = 2.",difficulty:"Easy",tags:["indices"]},
+    {id:"f7",type:"truefalse",question:"If $g(x)=2x+1$, then $g^{-1}(x)=\\frac{x-1}{2}$.",answer:"True",explanation:"Swap x,y: y=2x+1 ⇒ x=(y-1)/2.",difficulty:"Medium",tags:["functions"]},
+    {id:"f8",type:"mcq",question:"Vertex of $y=(x-4)^2+5$ is",choices:["(4,5)","(-4,5)","(5,4)","(0,5)"],answer:"(4,5)",explanation:"Vertex at (h,k).",difficulty:"Easy",tags:["quadratic"]}
+  ]
+};
+</script>
+</body>
+</html>
